@@ -11,6 +11,7 @@ import json
 from datetime import datetime, timedelta
 import time
 from difflib import SequenceMatcher
+import certifi  # REQUIRED: pip install certifi
 
 # Page configuration
 st.set_page_config(
@@ -724,12 +725,26 @@ def styled_metric(label, value, delta=None, delta_color="normal"):
     html += "</div>"
     return st.markdown(html, unsafe_allow_html=True)
 
-# Connect to MongoDB Atlas - EXACTLY AS ORIGINAL
+# Connect to MongoDB Atlas - UPDATED FOR ROBUSTNESS
 @st.cache_resource
 def get_db():
-    connection_string = st.secrets["database"]["mongodb_connection_string"]
-    client = pymongo.MongoClient(connection_string)
-    return client.ClusterLit
+    try:
+        if "database" not in st.secrets:
+            st.error("Missing 'database' section in secrets.toml")
+            return None
+            
+        connection_string = st.secrets["database"]["mongodb_connection_string"]
+        
+        # Use certifi for SSL Certificate Verification - Fixes connection errors on many platforms
+        client = pymongo.MongoClient(connection_string, tlsCAFile=certifi.where())
+        
+        # Test connection explicitly
+        client.admin.command('ping')
+        
+        return client.ClusterLit
+    except Exception as e:
+        st.error(f"Failed to connect to database: {e}")
+        return None
 
 # Get champion data - EXACTLY AS ORIGINAL
 @st.cache_data(ttl=3600)
@@ -778,7 +793,14 @@ def find_champion_key(champion_name, champion_data, champ_mapping):
 @st.cache_data(ttl=300)
 def load_scrims():
     db = get_db()
-    return list(db.Deacoy_Scrims.find())
+    if db is None:
+        return []
+        
+    try:
+        return list(db.Deacoy_Scrims.find())
+    except Exception as e:
+        st.error(f"Error loading scrims: {e}")
+        return []
 
 # Load data
 champion_data, ddragon_version, champ_mapping = get_champion_data()
@@ -869,7 +891,7 @@ st.title("Scrims Analysis")
 # scrims_data already loaded above
 
 if not scrims_data:
-    st.warning("No scrims data found in database. Please import scrim data first.")
+    st.warning("No scrims data found in database. Please check your connection string or import scrim data first.")
 else:
     # Define player roles - Updated keys to base names for cleaner matching
     players = {

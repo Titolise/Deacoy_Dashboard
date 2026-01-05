@@ -738,9 +738,9 @@ def get_db():
         client = pymongo.MongoClient(
             connection_string, 
             tlsCAFile=certifi.where(),
-            serverSelectionTimeoutMS=5000, 
-            connectTimeoutMS=5000,
-            socketTimeoutMS=5000
+            serverSelectionTimeoutMS=35000, 
+            connectTimeoutMS=35000,
+            socketTimeoutMS=35000
         )
         
         # Test connection explicitly

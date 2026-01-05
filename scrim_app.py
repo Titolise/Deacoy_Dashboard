@@ -31,6 +31,11 @@ def check_password():
     if st.session_state.authenticated:
         return True
     
+    # Safety check for secrets
+    if "auth" not in st.secrets:
+        st.error("⚠️ Secrets configuration error: 'auth' section missing.")
+        return False
+        
     def password_entered():
         if st.session_state["password"] == st.secrets["auth"]["password"]:
             st.session_state["authenticated"] = True
@@ -730,20 +735,39 @@ def styled_metric(label, value, delta=None, delta_color="normal"):
 def get_db():
     try:
         if "database" not in st.secrets:
-            st.error("Missing 'database' section in secrets.toml")
+            st.error("⚠️ Missing 'database' section in secrets.toml")
             return None
             
         connection_string = st.secrets["database"]["mongodb_connection_string"]
         
         # Use certifi for SSL Certificate Verification - Fixes connection errors on many platforms
-        client = pymongo.MongoClient(connection_string, tlsCAFile=certifi.where())
+        # Added timeouts to fail faster if IP is blocked (default is 30s, reduced to 5s)
+        client = pymongo.MongoClient(
+            connection_string, 
+            tlsCAFile=certifi.where(),
+            serverSelectionTimeoutMS=5000, 
+            connectTimeoutMS=5000,
+            socketTimeoutMS=5000
+        )
         
         # Test connection explicitly
         client.admin.command('ping')
         
         return client.ClusterLit
     except Exception as e:
-        st.error(f"Failed to connect to database: {e}")
+        error_msg = str(e)
+        st.error(f"Failed to connect to database: {error_msg}")
+        
+        # Enhanced Error Diagnosis
+        if "ServerSelectionTimeoutError" in error_msg:
+            st.warning("⚠️ **Network Error:** Could not reach MongoDB. \n\n"
+                       "**Likely Cause:** Your IP address is not whitelisted in MongoDB Atlas.\n\n"
+                       "**Fix:** Go to MongoDB Atlas -> Network Access -> Add IP Address -> 'Allow Access from Anywhere' (0.0.0.0/0).")
+        elif "AuthenticationFailed" in error_msg:
+            st.warning("⚠️ **Auth Error:** The username or password in your connection string is incorrect.")
+        elif "SSL" in error_msg:
+            st.warning("⚠️ **SSL Error:** There is an issue with the secure connection. The 'certifi' fix should handle this, but your network might be intercepting traffic.")
+            
         return None
 
 # Get champion data - EXACTLY AS ORIGINAL

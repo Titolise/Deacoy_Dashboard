@@ -1,16 +1,9 @@
 import streamlit as st
-import pandas as pd
 import pymongo
 import requests
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import os
 import base64
 import json
-from datetime import datetime, timedelta
-import time
-from difflib import SequenceMatcher
 import certifi  # REQUIRED: pip install certifi
 
 # Page configuration

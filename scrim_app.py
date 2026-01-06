@@ -4,7 +4,8 @@ import requests
 import os
 import base64
 import json
-import certifi  # REQUIRED: pip install certifi
+import certifi
+from collections import Counter  
 
 # Page configuration
 st.set_page_config(
@@ -36,7 +37,7 @@ def check_password():
         else:
             st.session_state["authenticated"] = False
 
-    # Professional login styling - Updated to Deep Violet Theme
+    # Styled login page
     st.markdown("""
     <style>
         .login-container {
@@ -197,7 +198,7 @@ def check_password():
 if not check_password():
     st.stop()
 
-# Professional CSS Framework - UPDATED TO DEEP VIOLET THEME
+# Global CSS Styling
 st.markdown("""
 <style>
     /* Professional Design System Variables - Violet/Dark Theme */
@@ -706,7 +707,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Enhanced metric cards function - EXACTLY AS ORIGINAL
+# Styled Metric Function
 def styled_metric(label, value, delta=None, delta_color="normal"):
     html = f"""
     <div class="stat-card">
@@ -723,7 +724,7 @@ def styled_metric(label, value, delta=None, delta_color="normal"):
     html += "</div>"
     return st.markdown(html, unsafe_allow_html=True)
 
-# Connect to MongoDB Atlas - UPDATED FOR ROBUSTNESS
+# MongoDB Connection
 @st.cache_resource
 def get_db():
     try:
@@ -733,8 +734,6 @@ def get_db():
             
         connection_string = st.secrets["database"]["mongodb_connection_string"]
         
-        # Use certifi for SSL Certificate Verification - Fixes connection errors on many platforms
-        # Added timeouts to fail faster if IP is blocked (default is 30s, reduced to 5s)
         client = pymongo.MongoClient(
             connection_string, 
             tlsCAFile=certifi.where(),
@@ -763,7 +762,7 @@ def get_db():
             
         return None
 
-# Get champion data - EXACTLY AS ORIGINAL
+# Get champion data 
 @st.cache_data(ttl=3600)
 def get_champion_data():
     versions = requests.get("https://ddragon.leagueoflegends.com/api/versions.json").json()
@@ -785,7 +784,7 @@ def get_champion_data():
         
     return champs["data"], latest, champ_mapping
 
-# Helper function to find champion key - EXACTLY AS ORIGINAL
+# Champion key finder
 def find_champion_key(champion_name, champion_data, champ_mapping):
     if not champion_name:
         return None
@@ -869,7 +868,7 @@ if scrims_data:
     
     team_win_rate = (team_wins / team_games * 100) if team_games > 0 else 0
 
-# Enhanced sidebar with modern design - UPDATED TO DEEP VIOLET
+# Sidebar - Header and Stats
 with st.sidebar:
     # Header with logo and text inline
     st.markdown("""
@@ -905,12 +904,10 @@ with st.sidebar:
 # Main Page - Scrims Analysis
 st.title("Scrims Analysis")
 
-# scrims_data already loaded above
-
 if not scrims_data:
     st.warning("No scrims data found in database. Please check your connection string or import scrim data first.")
 else:
-    # Define player roles - Updated keys to base names for cleaner matching
+    # Define player roles 
     players = {
         "Fratellin": "Top",
         "Hamudis": "Jungle", 
@@ -1107,10 +1104,7 @@ else:
                     </div>
                     """, unsafe_allow_html=True)
         
-        # Summary statistics removed from here as requested
-    
     with tab2:
-        # ALL THE GAME BROWSER CODE
         st.markdown("""
         <div style="text-align: center; margin-bottom: 2rem;">
             <h2 style="background: linear-gradient(135deg, #a78bfa, #c4b5fd); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.5rem;">
@@ -1125,6 +1119,7 @@ else:
         all_our_champions = set()
         all_enemy_champions = set()
         all_game_versions = set()
+        all_enemy_teams = set() 
         
         for scrim_index, scrim in enumerate(scrims_data):
             participants = scrim.get("participants", [])
@@ -1135,7 +1130,7 @@ else:
             else:
                 game_duration = int(game_duration) if game_duration else 0
             
-            # Extract major version (e.g., "15.13" from "15.13.693.1076")
+            # Extract major version 
             version_parts = game_version.split(".")
             if len(version_parts) >= 2:
                 major_version = f"{version_parts[0]}.{version_parts[1]}"
@@ -1275,15 +1270,46 @@ else:
                             "grubs": team_stats[team_id]["grubs"]
                         }
             
-            # Determine side (assuming team 100 is blue, 200 is red)
-            our_side = "BLUE" if our_team_id == 100 else "RED"
-            enemy_side = "RED" if our_team_id == 100 else "BLUE"
+            # Determine enemy team name logic
+            enemy_team_name = "Unknown Team"
+            enemy_tags = []
+            for p in enemy_team:
+                name = p["full_name"].strip()
+                if " " in name:
+                    tag = name.split(" ")[0]
+                    
+                    if len(tag) >= 2 and len(tag) <= 5:
+                        enemy_tags.append(tag)
+            
+            if enemy_tags:
+                counts = Counter(enemy_tags)
+                most_common_tag, count = counts.most_common(1)[0]
+                if count >= 2:
+                    enemy_team_name = most_common_tag
+                else:
+                    enemy_team_name = "Mixed Team"
+            else:
+                enemy_team_name = "Mixed Team"
+            
+            all_enemy_teams.add(enemy_team_name)
+
+            # Determine side 
+            T_BLUE = 100
+            T_RED = 200
+            
+            if our_team_id == T_BLUE:
+                our_side = 'BLUE'
+                enemy_side = 'RED'
+            else:
+                our_side = 'RED'
+                enemy_side = 'BLUE'
             
             if len(our_team) == 5 and len(enemy_team) == 5:
                 scrim_games.append({
                     "index": scrim_index,
                     "our_team": our_team,
                     "enemy_team": enemy_team,
+                    "enemy_team_name": enemy_team_name, 
                     "our_objectives": our_team_objectives,
                     "enemy_objectives": enemy_team_objectives,
                     "result": game_result,
@@ -1303,15 +1329,29 @@ else:
             # Filtering section
             st.subheader("🔍 Filter Games")
             
-            # Game version filter
-            sorted_versions = sorted(list(all_game_versions), reverse=True)
-            selected_versions = st.multiselect(
-                "Game Versions",
-                sorted_versions,
-                default=[],
-                key="scrim_version_filter"
-            )
+            # Row 1: Multiselect filters
+            filter_col1, filter_col2 = st.columns(2)
             
+            with filter_col1:
+                sorted_versions = sorted(list(all_game_versions), reverse=True)
+                selected_versions = st.multiselect(
+                    "Game Versions",
+                    sorted_versions,
+                    default=[],
+                    key="scrim_version_filter"
+                )
+            
+            with filter_col2:
+                # Enemy Team Filter
+                sorted_teams = sorted(list(all_enemy_teams))
+                selected_teams = st.multiselect(
+                    "Enemy Teams",
+                    sorted_teams,
+                    default=[],
+                    key="scrim_team_filter"
+                )
+            
+            # Row 2: Selectbox/Radio filters
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
@@ -1334,6 +1374,10 @@ else:
             # Apply version filter
             if selected_versions:
                 filtered_games = [g for g in filtered_games if g["game_version"] in selected_versions]
+                
+            # Apply team filter 
+            if selected_teams:
+                filtered_games = [g for g in filtered_games if g["enemy_team_name"] in selected_teams]
             
             if result_filter != "All":
                 filtered_games = [g for g in filtered_games if g["result"] == result_filter]
@@ -1385,6 +1429,7 @@ else:
                 # Display games
                 for game in filtered_games:
                     result_color = "#10b981" if game["result"] == "WIN" else "#ef4444"
+                    enemy_team_display = game.get('enemy_team_name', 'Unknown Team')
                     
                     with st.container():
                         # Game header
@@ -1395,10 +1440,15 @@ else:
                                     padding: 1rem; 
                                     margin: 1rem 0;
                                     backdrop-filter: blur(10px);">
-                            <h4 style="color: {result_color}; margin: 0; display: flex; align-items: center; gap: 1rem;">
-                                <span>{game["result"]}</span>
-                                <span style="color: #a1a1aa; font-size: 1rem; font-weight: 400;">
-                                    • Our Side: {game["our_side"]} • Game #{game["index"] + 1} • Version: {game["game_version"]}
+                            <h4 style="color: {result_color}; margin: 0; display: flex; align-items: center; justify-content: space-between;">
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <span>{game["result"]}</span>
+                                    <span style="color: #a1a1aa; font-size: 1rem; font-weight: 400;">
+                                        • vs <strong style="color: #f8fafc;">{enemy_team_display}</strong> • {game["our_side"]} Side
+                                    </span>
+                                </div>
+                                <span style="color: #71717a; font-size: 0.9rem; font-weight: 400;">
+                                    v{game["game_version"]} • #{game["index"] + 1}
                                 </span>
                             </h4>
                         </div>
@@ -1520,7 +1570,7 @@ else:
                         with col2:
                             st.markdown(f"""
                             <h5 style="color: #ef4444; margin-bottom: 0.5rem; text-align: center;">
-                                Enemy ({game["enemy_side"]} Side)
+                                {enemy_team_display} ({game["enemy_side"]} Side)
                             </h5>
                             """, unsafe_allow_html=True)
                             
